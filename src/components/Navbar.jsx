@@ -79,6 +79,7 @@ import {
 } from "./ui/accordion";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
+import ScrollProgress from "./Scroll-Progress";
 
 const navItems = [
   {
@@ -172,6 +173,15 @@ const Navbar = () => {
   const router = useRouter();
   const pathname = usePathname();
 
+  console.log(pathname);
+
+  const navHiddenPaths = [
+    "/login",
+    "/register",
+    "/admin/login",
+    "/reset-password",
+  ];
+
   const [commandOpen, setCommandOpen] = useState(false);
   useEffect(() => {
     const down = (e) => {
@@ -189,7 +199,12 @@ const Navbar = () => {
 
   return (
     <>
-      <header className="w-full fixed top-0 bg-white border-b z-50 border-gray-200">
+      <header
+        className={cn(
+          navHiddenPaths.includes(pathname) && "hidden",
+          "w-full fixed top-0 bg-white border-b z-50 border-gray-200"
+        )}
+      >
         <div className="w-full  max-auto px-2 lg:px-4">
           <div className="flex items-center justify-between  h-16">
             <div className="flex items-center gap-10">
@@ -232,11 +247,15 @@ const Navbar = () => {
                     >
                       {section.items.map((item) => (
                         <DropdownMenuItem
-                          className={"flex items-center text-sm"}
+                          asChild
                           key={item.label}
+                          className="flex items-center text-sm"
                         >
-                          <item.icon className="mr-1 h-4 w-4" />
-                          <Link href={item.link} className="text-sm">
+                          <Link
+                            href={item.link}
+                            className="flex items-center text-sm"
+                          >
+                            <item.icon className="mr-1 h-4 w-4" />
                             {item.label}
                           </Link>
                         </DropdownMenuItem>
@@ -286,10 +305,7 @@ const Navbar = () => {
                 <Bell className="h-6 w-6 text-gray-600 hover:text-gray-800" />
               </Link>
               <DropdownMenu className={""}>
-                <DropdownMenuTrigger
-                  className={"cursor-pointer "}
-                  asChild
-                >
+                <DropdownMenuTrigger className={"cursor-pointer "} asChild>
                   <div className="flex items-center">
                     <Avatar>
                       <AvatarImage src="/bvrit-admin.png" />
@@ -378,7 +394,7 @@ const Navbar = () => {
 
                   <nav
                     aria-label="Mobile navigation"
-                    className="mt-2 h-[calc(100vh-4rem)] overflow-y-auto"
+                    className="mt-1 h-[calc(100vh-4rem)] overflow-y-auto"
                   >
                     <Accordion type="multiple" className="w-full">
                       {navItems.map((section, idx) => (
@@ -400,13 +416,13 @@ const Navbar = () => {
                                     <SheetClose asChild>
                                       <div
                                         className={cn(
-                                          "rounded-md flex items-center px-3 py-1 text-sm transition-colors",
+                                          "rounded-md flex items-center px-3 py-0.5 text-sm transition-colors",
                                           active
                                             ? "bg-primary/10 text-primary"
                                             : "hover:bg-muted"
                                         )}
                                       >
-                                        <item.icon className="h-5 w-5" />
+                                        <item.icon className="h-4.5 w-4.5" />
                                         <Link
                                           href={item.link}
                                           className={cn(
@@ -437,6 +453,7 @@ const Navbar = () => {
             </div>
           </div>
         </div>
+        <ScrollProgress />
       </header>
 
       <CommandDialog open={commandOpen} onOpenChange={setCommandOpen}>

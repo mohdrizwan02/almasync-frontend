@@ -1,19 +1,13 @@
 "use client";
 import React, { useRef } from "react";
-
 import { useState } from "react";
-
 import { useRouter } from "next/navigation";
+import { useAuthOperations } from "@/hooks/useAuthOperations";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-
-import {
-  InputOTP,
-  InputOTPGroup,
-  InputOTPSlot,
-} from "@/components/ui/input-otp";
 
 import { Eye, EyeOff, ArrowLeft } from "lucide-react";
 import Image from "next/image";
@@ -21,19 +15,19 @@ import Image from "next/image";
 const ResetPasswordPage = () => {
   const [email, setEmail] = useState("");
   const [codeSent, setCodeSent] = useState(false);
-
   const [codeVerified, setCodeVerified] = useState(false);
-
   const [showPassword, setShowPassword] = useState(false);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [code, setCode] = useState(["", "", "", "", "", ""]);
-  const [isVerifying, setIsVerifying] = useState(false);
-  const [isUpdating, setIsUpdating] = useState(false);
-  const isFormValid = password.length >= 8 && password === confirmPassword;
+  const [isLoading, setIsLoading] = useState(false);
+  const [verificationToken, setVerificationToken] = useState("");
+  
   const inputRefs = useRef([]);
-
   const router = useRouter();
+  const { handleForgotPassword, handleOtpVerification, handlePasswordReset } = useAuthOperations();
+
+  const isFormValid = password.length >= 8 && password === confirmPassword;
 
   const handleKeyDown = (index, e) => {
     if (e.key === "Backspace" && !code[index] && index > 0) {
@@ -42,7 +36,22 @@ const ResetPasswordPage = () => {
   };
 
   const handleSendVerificationCode = async () => {
-    setCodeSent((prev) => true);
+    if (!email.trim()) {
+      toast.error('Please enter your email address');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const result = await handleForgotPassword(email);
+      if (result?.success) {
+        setCodeSent(true);
+      }
+    } catch (error) {
+      console.error('Send code failed:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleCodeChange = (index, value) => {
@@ -58,29 +67,64 @@ const ResetPasswordPage = () => {
   };
 
   const handleVerify = async () => {
-    setIsVerifying(true);
+    if (!isCodeComplete) {
+      toast.error('Please enter the complete verification code');
+      return;
+    }
 
-    setTimeout(() => {
-      setIsVerifying(false);
-      setCodeVerified((prev) => true);
-      console.log("Verification code:", code.join(""));
-    }, 2000);
+    setIsLoading(true);
+    try {
+      const otpData = { otp: code.join("") };
+      const result = await handleOtpVerification(email, otpData);
+      if (result?.success) {
+        setCodeVerified(true);
+        setVerificationToken(result.data?.token || 'verified');
+      }
+    } catch (error) {
+      console.error('Verification failed:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResendCode = async () => {
+    setIsLoading(true);
+    try {
+      const result = await handleForgotPassword(email);
+      if (result?.success) {
+        setCode(["", "", "", "", "", ""]); // Clear the code input
+      }
+    } catch (error) {
+      console.error('Resend code failed:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const isCodeComplete = code.every((digit) => digit !== "");
 
   const handleUpdatePassword = async () => {
     if (password !== confirmPassword) {
-      alert("Passwords don't match!");
+      toast.error("Passwords don't match!");
       return;
     }
 
-    setIsUpdating(true);
+    if (password.length < 8) {
+      toast.error("Password must be at least 8 characters long");
+      return;
+    }
 
-    setTimeout(() => {
-      setIsUpdating(false);
-      console.log("Password updated successfully");
-    }, 2000);
+    setIsLoading(true);
+    try {
+      const result = await handlePasswordReset(email, verificationToken, password);
+      if (result?.success) {
+        // Success handling and redirect is managed by useAuthOperations
+      }
+    } catch (error) {
+      console.error('Password update failed:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -118,6 +162,8 @@ const ResetPasswordPage = () => {
                       id="email"
                       type="email"
                       placeholder="Enter Email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
                       className="h-12 border-gray-200 focus:ring-0 shadow-none rounded-lg bg-white focus:border-[#D97706] placeholder:font-light"
                     />
                   </div>
@@ -125,9 +171,10 @@ const ResetPasswordPage = () => {
 
                 <Button
                   onClick={handleSendVerificationCode}
-                  className="w-full h-12 text-sm font-medium text-white  rounded-lg shadow-none cursor-pointer bg-amber-600 hover:bg-green-600"
+                  disabled={isLoading || !email.trim()}
+                  className="w-full h-12 text-sm font-medium text-white  rounded-lg shadow-none cursor-pointer bg-amber-600 hover:bg-green-600 disabled:bg-gray-400"
                 >
-                  Send Reset Code
+                  {isLoading ? "Sending..." : "Send Reset Code"}
                 </Button>
 
                 <div className="text-center text-sm text-muted-foreground space-y-1">
@@ -193,10 +240,10 @@ const ResetPasswordPage = () => {
 
                 <Button
                   onClick={handleVerify}
-                  disabled={!isCodeComplete || isVerifying}
+                  disabled={!isCodeComplete || isLoading}
                   className="w-full h-12 text-sm font-medium text-white rounded-lg shadow-none cursor-pointer bg-amber-600 hover:bg-green-600 disabled:bg-gray-400"
                 >
-                  {isVerifying ? "Verifying..." : "Verify Code"}
+                  {isLoading ? "Verifying..." : "Verify Code"}
                 </Button>
 
                 <div className="text-center text-sm text-muted-foreground space-y-1">
@@ -206,8 +253,10 @@ const ResetPasswordPage = () => {
                       variant="link"
                       className="p-0 h-auto text-sm hover:text-opacity-80 font-medium cursor-pointer"
                       style={{ color: "#3F3FF3" }}
+                      onClick={handleResendCode}
+                      disabled={isLoading}
                     >
-                      Resend Code
+                      {isLoading ? "Sending..." : "Resend Code"}
                     </Button>
                   </div>
                 </div>
@@ -311,10 +360,10 @@ const ResetPasswordPage = () => {
 
                 <Button
                   onClick={handleUpdatePassword}
-                  disabled={!isFormValid || isUpdating}
+                  disabled={!isFormValid || isLoading}
                   className="w-full h-12 text-sm font-medium text-white rounded-lg shadow-none cursor-pointer bg-amber-600 hover:bg-green-600 disabled:bg-gray-400"
                 >
-                  {isUpdating ? "Updating..." : "Update Password"}
+                  {isLoading ? "Updating..." : "Update Password"}
                 </Button>
 
                 <div className="text-center text-sm text-muted-foreground space-y-1">

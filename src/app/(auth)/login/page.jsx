@@ -1,53 +1,102 @@
 "use client";
 import React from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
-import { Eye, EyeOff, ArrowLeft } from "lucide-react";
-import Image from "next/image";
+
+import { Checkbox } from "@/components/ui/checkbox";
+import { Eye, EyeOff, ArrowLeft, Loader2 } from "lucide-react";
 
 import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { loginSchema } from "@/schemas/auth.schema";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { toast } from "sonner";
+import axios from "axios";
 
 const LoginPage = () => {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
-  const [loading, setLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  // const userForm = useForm({
-  //   resolver: zodResolver(loginSchema),
-  //   defaultValues: {
-  //     email: "",
-  //     password: "",
-  //     rememberMe: false,
-  //   },
-  // });
+  // Initialize React Hook Form with Zod validation
+  const form = useForm({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: "",
+      password: "",
+      rememberMe: false,
+    },
+  });
 
-  function handleUserLogin(values) {
-    setLoading((prev) => true);
+  // Handle form submission
+  async function handleUserLogin(values) {
+    setIsSubmitting(true);
+
     console.log(values);
 
     axios
-      .post("/api/auth/login", values)
+      .post(`/api/auth/login`, values)
       .then((response) => {
         console.log(response);
-        console.log(response.data.success);
-        if (response.data.success) {
-          router.push("/");
-        }
       })
       .catch((error) => {
-        setLoading((prev) => false);
-        console.log(error.response.data);
-        if (!error.response.data.success) {
-          toast.error(error.response.data.error);
+        let errorMessage = "Login failed";
+        let description = "Please check your credentials and try again";
+
+        console.log(error);
+
+        if (error.status === 401 || error.status === 404) {
+          errorMessage = "Invalid credentials";
+          description = "Please check your email/UID and password";
+        } else if (error.status === 423) {
+          errorMessage = "Account temporarily locked";
+          description = "Please try again after some time or contact support";
+        } else if (error.status === 403) {
+          errorMessage = "Account not activated";
+          description = "Please verify your email or contact support";
+        } else if (error.status === 429) {
+          errorMessage = "Too many attempts";
+          description = "Please wait before trying again";
+        } else if (error.status >= 500) {
+          errorMessage = "Server error";
+          description = "Please try again later";
         }
+
+        toast.error(errorMessage, {
+          description,
+          duration: 4000,
+        });
+      })
+      .finally(() => {
+        setIsSubmitting(false);
       });
+
+    if (true) {
+      console.log("Login successful:");
+
+      toast.success(`Welcome back, ${"Mohammad Rizwan"}! 🎉`, {
+        description: `You are now signed in as ${"Student"}`,
+        duration: 3000,
+      });
+
+      router.push("/profile");
+    } else {
+      throw new Error(result.message || "Login failed");
+    }
   }
   return (
     <>
@@ -176,157 +225,117 @@ const LoginPage = () => {
                         </div>
                       </div>
                       <div className="space-y-5">
-                        <>
-                          {/* <Form {...userForm}>
+                        <Form {...form}>
                           <form
                             className="space-y-5 mt-2"
-                            onSubmit={userForm.handleSubmit(handleUserLogin)}
+                            onSubmit={form.handleSubmit(handleUserLogin)}
                           >
                             <FormField
-                              control={userForm.control}
+                              control={form.control}
                               name="email"
                               render={({ field }) => (
                                 <FormItem>
-                                  <FormLabel>Email</FormLabel>
+                                  <FormLabel className="text-sm font-medium text-foreground">
+                                    Email or UID
+                                  </FormLabel>
                                   <FormControl>
                                     <Input
-                                      type="email"
-                                      placeholder=""
+                                      type="text"
+                                      placeholder="Enter Email or UID"
+                                      className="h-10 border-gray-200 focus:ring-0 shadow-none rounded-lg bg-white focus:border-[#D97706] placeholder:font-light"
                                       {...field}
+                                      disabled={isSubmitting}
                                     />
                                   </FormControl>
                                   <FormMessage />
                                 </FormItem>
                               )}
                             />
+
                             <FormField
-                              control={userForm.control}
+                              control={form.control}
                               name="password"
                               render={({ field }) => (
                                 <FormItem>
-                                  <FormLabel>Password</FormLabel>
-
+                                  <FormLabel className="text-sm font-medium text-foreground">
+                                    Password
+                                  </FormLabel>
                                   <FormControl>
-                                    <Input
-                                      type="password"
-                                      placeholder=""
-                                      {...field}
-                                    />
+                                    <div className="relative">
+                                      <Input
+                                        type={
+                                          showPassword ? "text" : "password"
+                                        }
+                                        placeholder="Enter password"
+                                        className="h-10 pr-10 border-gray-200 focus:ring-0 shadow-none rounded-lg bg-white focus:border-amber-600 placeholder:font-light"
+                                        {...field}
+                                        disabled={isSubmitting}
+                                      />
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent cursor-pointer"
+                                        onClick={() =>
+                                          setShowPassword(!showPassword)
+                                        }
+                                      >
+                                        {showPassword ? (
+                                          <EyeOff className="h-4 w-4 text-muted-foreground" />
+                                        ) : (
+                                          <Eye className="h-4 w-4 text-muted-foreground" />
+                                        )}
+                                      </Button>
+                                    </div>
                                   </FormControl>
                                   <FormMessage />
                                 </FormItem>
                               )}
                             />
-                            <div className="flex justify-between items-center">
-                              <div className="">
-                                <FormField
-                                  control={userForm.control}
-                                  name="rememberMe"
-                                  render={({ field }) => (
-                                    <FormItem className={"flex "}>
-                                      <FormControl>
-                                        <Checkbox
-                                          checked={field.value}
-                                          onCheckedChange={field.onChange}
-                                        />
-                                      </FormControl>
 
-                                      <FormLabel>Remember me</FormLabel>
-                                    </FormItem>
-                                  )}
-                                />
-                              </div>
+                            <div className="flex items-center justify-between">
+                              <FormField
+                                control={form.control}
+                                name="rememberMe"
+                                render={({ field }) => (
+                                  <FormItem className="flex items-center space-x-2">
+                                    <FormControl>
+                                      <Checkbox
+                                        checked={field.value}
+                                        onCheckedChange={field.onChange}
+                                        className="rounded border-gray-300 cursor-pointer"
+                                        disabled={isSubmitting || isLoading}
+                                      />
+                                    </FormControl>
+                                    <FormLabel className="text-sm text-muted-foreground cursor-pointer">
+                                      Remember Me
+                                    </FormLabel>
+                                  </FormItem>
+                                )}
+                              />
                               <Button
                                 type="button"
                                 variant="link"
-                                onClick={() => router.push("forgot-password")}
+                                className="p-0 h-auto text-sm text-red-500 hover:text-opacity-80 cursor-pointer"
+                                onClick={() => router.push("/reset-password")}
                               >
-                                forgot password
+                                Forgot Your Password?
                               </Button>
                             </div>
-                            <div className="flex justify-center">
-                              <Button type="submit" className="w-full h-10">
-                                {loading ? (
-                                  <Loader2 className="animate-spin" />
-                                ) : (
-                                  "Sign in"
-                                )}
-                              </Button>
-                            </div>
-                          </form>
-                        </Form> */}
-                        </>
 
-                        <div className="space-y-2">
-                          <Label
-                            htmlFor="email"
-                            className="text-sm font-medium text-foreground"
-                          >
-                            Email
-                          </Label>
-                          <Input
-                            id="email"
-                            type="email"
-                            placeholder="Enter Email"
-                            className="h-10 border-gray-200 focus:ring-0 shadow-none rounded-lg bg-white focus:border-[#D97706] placeholder:font-light"
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label
-                            htmlFor="password"
-                            className="text-sm font-medium text-foreground"
-                          >
-                            Password
-                          </Label>
-                          <div className="relative">
-                            <Input
-                              id="password"
-                              type={showPassword ? "text" : "password"}
-                              placeholder="Enter password"
-                              className="h-10 pr-10 border-gray-200 focus:ring-0 shadow-none rounded-lg bg-white focus:border-amber-600 placeholder:font-light"
-                            />
                             <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent cursor-pointer"
-                              onClick={() => setShowPassword(!showPassword)}
+                              type="submit"
+                              className="w-full h-12 text-sm font-medium bg-amber-600 hover:bg-green-600 text-white hover:opacity-90 rounded-lg shadow-none cursor-pointer"
+                              disabled={isSubmitting || isLoading}
                             >
-                              {showPassword ? (
-                                <EyeOff className="h-4 w-4 text-muted-foreground" />
+                              {isSubmitting ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
                               ) : (
-                                <Eye className="h-4 w-4 text-muted-foreground" />
+                                "Log In"
                               )}
                             </Button>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-2">
-                            <input
-                              type="checkbox"
-                              id="remember"
-                              className="rounded border-gray-300 cursor-pointer"
-                            />
-                            <Label
-                              htmlFor="remember"
-                              className="text-sm text-muted-foreground cursor-pointer"
-                            >
-                              Remember Me
-                            </Label>
-                          </div>
-                          <Button
-                            variant="link"
-                            className="p-0 h-auto text-sm text-red-500 hover:text-opacity-80 cursor-pointer"
-                          >
-                            Forgot Your Password?
-                          </Button>
-                        </div>
-
-                        <Button className="w-full h-12 text-sm font-medium bg-amber-600 hover:bg-green-600 text-white hover:opacity-90 rounded-lg shadow-none cursor-pointer">
-                          Log In
-                        </Button>
+                          </form>
+                        </Form>
 
                         <div className="text-center text-sm mt-2 text-muted-foreground">
                           <>

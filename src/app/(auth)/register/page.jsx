@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
+import { useAuthGuard } from "@/hooks/useAuth";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+
 import {
   Select,
   SelectContent,
@@ -13,271 +15,110 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 import Image from "next/image";
+import { toast } from "sonner";
+
+import { registerSchema } from "@/schemas/register.schema";
+
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { es } from "zod/v4/locales";
 
 const RegisterPage = () => {
   const router = useRouter();
+  const { register, isLoading } = useAuth();
+
+  // Redirect authenticated users
+  useAuthGuard({ requireAuth: false });
+
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isYearValid, setIsYearValid] = useState(true);
+
+  const form = useForm({
+    resolver: zodResolver(registerSchema),
+    defaultValues: {
+      firstName: "",
+      lastName: "",
+      email: "",
+      password: "",
+      uid: "",
+      degree: "",
+      department: "",
+      admissionYear: "",
+      passoutYear: "",
+    },
+  });
+
+  async function handleUserRegister(values) {
+    setIsSubmitting(true);
+
+    try {
+      // Validate year differences before API call
+      const admission = parseInt(values.admissionYear);
+      const passout = parseInt(values.passoutYear);
+      const yearDifference = passout - admission;
+
+      let yearValidationError = null;
+
+      if (values.degree === "BTECH" && yearDifference !== 4) {
+        yearValidationError =
+          "For B.Tech, Admission Year and Passing Year must have exactly 4 years gap.";
+      } else if (values.degree === "MTECH" && yearDifference !== 2) {
+        yearValidationError =
+          "For M.Tech, Admission Year and Passing Year must have exactly 2 years gap.";
+      }
+
+      if (yearValidationError) {
+        setIsYearValid(false);
+        toast.error(yearValidationError);
+        return;
+      } else {
+        setIsYearValid(true);
+      }
+
+      // Determine role based on passout year
+      const currentYear = new Date().getFullYear();
+      const role = passout <= currentYear ? "alumni" : "student";
+
+      const registerData = {
+        ...values,
+        admissionYear: admission,
+        passoutYear: passout,
+        college: "BVRIT", // Default college
+        role: role, // Auto-determine role
+      };
+
+      console.log("Registration data:", registerData);
+
+      // Call the authentication service
+      const result = await register(registerData);
+      
+      // The success handling and redirect is now managed by authService and useAuthOperations
+      if (result?.success) {
+        // Success feedback is handled in the service
+        // Redirect will be handled by useAuthOperations
+      }
+    } catch (error) {
+      console.error("Registration failed:", error);
+      // Error handling is done in the auth service
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
 
   return (
     <>
-      {/* <div className="min-h-screen flex font-sans">
-        <div className="w-full flex items-center justify-center p-4 lg:mt-8 bg-white">
-          <div className="w-full max-w-xl space-y-8 p-2">
-            <div className="flex justify-center mb-4">
-              <Image
-                src="/almasync.png"
-                width={200}
-                height={50}
-                alt="AlmaSync Logo"
-              />
-            </div>
-
-            <div className="space-y-6">
-              <div className="space-y-2 text-center">
-                <h2 className="text-3xl text-foreground">Create Account</h2>
-                <p className="text-muted-foreground">
-                  Fill in your details to create your AlmaSync account.
-                </p>
-              </div>
-
-              <div className="max-h-96 overflow-y-auto px-2 py-2 space-y-4">
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="firstname"
-                    className="text-sm font-medium text-foreground"
-                  >
-                    First Name
-                  </Label>
-                  <Input
-                    id="firstname"
-                    type="text"
-                    placeholder="Enter Firstname"
-                    className="h-10 border-gray-200 focus:ring-0 shadow-none rounded-lg bg-white focus:border-[#D97706] placeholder:font-light"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="lastname"
-                    className="text-sm font-medium text-foreground"
-                  >
-                    Last Name
-                  </Label>
-                  <Input
-                    id="lastname"
-                    type="text"
-                    placeholder="Enter Lastname"
-                    className="h-10 border-gray-200 focus:ring-0 shadow-none rounded-lg bg-white focus:border-[#D97706] placeholder:font-light"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="email"
-                    className="text-sm font-medium text-foreground"
-                  >
-                    Email
-                  </Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="Enter Email"
-                    className="h-10 border-gray-200 focus:ring-0 shadow-none rounded-lg bg-white focus:border-[#D97706] placeholder:font-light"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="username"
-                    className="text-sm font-medium text-foreground"
-                  >
-                    Enrollment Number
-                  </Label>
-                  <Input
-                    id="username"
-                    type="text"
-                    placeholder="Enter username or enrollment number"
-                    className="h-10 border-gray-200 focus:ring-0 shadow-none rounded-lg bg-white focus:border-[#D97706] placeholder:font-light"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="degree"
-                    className="text-sm font-medium text-foreground"
-                  >
-                    Degree
-                  </Label>
-                  <Select>
-                    <SelectTrigger className="h-12 w-full border-gray-200 focus:ring-0 shadow-none rounded-lg bg-white focus:border-[#D97706]">
-                      <SelectValue placeholder="Select degree" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="bachelor">
-                        Bachelor's Degree
-                      </SelectItem>
-                      <SelectItem value="master">Master's Degree</SelectItem>
-                      <SelectItem value="phd">PhD</SelectItem>
-                      <SelectItem value="diploma">Diploma</SelectItem>
-                      <SelectItem value="certificate">Certificate</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="department"
-                    className="text-sm font-medium text-foreground"
-                  >
-                    Department
-                  </Label>
-                  <Select>
-                    <SelectTrigger className="h-10 border-gray-200 w-full focus:ring-0 shadow-none rounded-lg bg-white focus:border-[#D97706] placeholder:font-light">
-                      <SelectValue placeholder="Select department" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="computer-science">
-                        Computer Science
-                      </SelectItem>
-                      <SelectItem value="electrical-engineering">
-                        Electrical Engineering
-                      </SelectItem>
-                      <SelectItem value="mechanical-engineering">
-                        Mechanical Engineering
-                      </SelectItem>
-                      <SelectItem value="civil-engineering">
-                        Civil Engineering
-                      </SelectItem>
-                      <SelectItem value="business-administration">
-                        Business Administration
-                      </SelectItem>
-                      <SelectItem value="mathematics">Mathematics</SelectItem>
-                      <SelectItem value="physics">Physics</SelectItem>
-                      <SelectItem value="chemistry">Chemistry</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="flex space-x-4">
-                  <div className="flex-1 space-y-2">
-                    <Label
-                      htmlFor="admissionYear"
-                      className="text-sm font-medium text-foreground"
-                    >
-                      Admission Year
-                    </Label>
-                    <Input
-                      id="admissionYear"
-                      type="number"
-                      placeholder="2020"
-                      min="1950"
-                      max="2030"
-                      className="h-10 border-gray-200 focus:ring-0 shadow-none rounded-lg bg-white focus:border-[#D97706] placeholder:font-light"
-                    />
-                  </div>
-
-                  <div className="flex-1 space-y-2">
-                    <Label
-                      htmlFor="passingYear"
-                      className="text-sm font-medium text-foreground"
-                    >
-                      Passing Year
-                    </Label>
-                    <Input
-                      id="passingYear"
-                      type="number"
-                      placeholder="2024"
-                      min="1950"
-                      max="2030"
-                      className="h-10 border-gray-200 focus:ring-0 shadow-none rounded-lg bg-white focus:border-[#D97706] placeholder:font-light"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="password"
-                    className="text-sm font-medium text-foreground"
-                  >
-                    Password
-                  </Label>
-                  <div className="relative">
-                    <Input
-                      id="password"
-                      type={showPassword ? "text" : "password"}
-                      placeholder="Enter password"
-                      className="h-10 pr-10 border-gray-200 focus:ring-0 shadow-none rounded-lg bg-white focus:border-amber-600 placeholder:font-light"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent cursor-pointer"
-                      onClick={() => setShowPassword(!showPassword)}
-                    >
-                      {showPassword ? (
-                        <EyeOff className="h-4 w-4 text-muted-foreground" />
-                      ) : (
-                        <Eye className="h-4 w-4 text-muted-foreground" />
-                      )}
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="confirmPassword"
-                    className="text-sm font-medium text-foreground"
-                  >
-                    Confirm Password
-                  </Label>
-                  <div className="relative">
-                    <Input
-                      id="confirmPassword"
-                      type={showConfirmPassword ? "text" : "password"}
-                      placeholder="Confirm password"
-                      className="h-10 pr-10 border-gray-200 focus:ring-0 shadow-none rounded-lg bg-white focus:border-[#D97706] placeholder:font-light"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent cursor-pointer"
-                      onClick={() =>
-                        setShowConfirmPassword(!showConfirmPassword)
-                      }
-                    >
-                      {showConfirmPassword ? (
-                        <EyeOff className="h-4 w-4 text-muted-foreground" />
-                      ) : (
-                        <Eye className="h-4 w-4 text-muted-foreground" />
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              </div>
-
-              <Button className="w-full h-12 text-sm font-medium text-white rounded-lg shadow-none cursor-pointer bg-amber-600 hover:bg-green-600">
-                Create Account
-              </Button>
-
-              <div className="text-center text-sm text-muted-foreground">
-                Already Have An Account?{" "}
-                <Button
-                  variant="link"
-                  onClick={() => router.push("/login")}
-                  className="p-0 h-auto text-sm hover:text-opacity-80 font-medium cursor-pointer text-amber-600"
-                >
-                  Login.
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div> */}
-
       <div className="min-h-screen relative overflow-hidden py-8">
         <div className="inset-0 z-0">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
@@ -373,6 +214,7 @@ const RegisterPage = () => {
                     </div>
                   </div>
                 </div>
+
                 <div className="w-full md:w-7/12 bg-white">
                   <div className="p-6 md:p-8">
                     <div
@@ -410,197 +252,271 @@ const RegisterPage = () => {
                         </div>
                       </div>
 
-                      <div className="space-y-2">
-                        <Label
-                          htmlFor="firstname"
-                          className="text-sm font-medium text-foreground"
+                      <Form {...form}>
+                        <form
+                          className=" px-2 space-y-4 pr-4"
+                          onSubmit={form.handleSubmit(handleUserRegister)}
                         >
-                          First Name
-                        </Label>
-                        <Input
-                          id="firstname"
-                          type="text"
-                          placeholder="Enter Firstname"
-                          className="h-10 border-gray-200 focus:ring-0 shadow-none rounded-lg bg-white focus:border-[#D97706] placeholder:font-light"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label
-                          htmlFor="lastname"
-                          className="text-sm font-medium text-foreground"
-                        >
-                          Last Name
-                        </Label>
-                        <Input
-                          id="lastname"
-                          type="text"
-                          placeholder="Enter Lastname"
-                          className="h-10 border-gray-200 focus:ring-0 shadow-none rounded-lg bg-white focus:border-[#D97706] placeholder:font-light"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label
-                          htmlFor="email"
-                          className="text-sm font-medium text-foreground"
-                        >
-                          Email
-                        </Label>
-                        <Input
-                          id="email"
-                          type="email"
-                          placeholder="Enter Email"
-                          className="h-10 border-gray-200 focus:ring-0 shadow-none rounded-lg bg-white focus:border-[#D97706] placeholder:font-light"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label
-                          htmlFor="password"
-                          className="text-sm font-medium text-foreground"
-                        >
-                          Password
-                        </Label>
-                        <div className="relative">
-                          <Input
-                            id="password"
-                            type={showPassword ? "text" : "password"}
-                            placeholder="Enter password"
-                            className="h-10 pr-10 border-gray-200 focus:ring-0 shadow-none rounded-lg bg-white focus:border-amber-600 placeholder:font-light"
+                          <FormField
+                            control={form.control}
+                            name="firstName"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel className="text-sm font-medium text-foreground">
+                                  First Name
+                                </FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type="text"
+                                    placeholder="Enter Firstname"
+                                    className="h-10 border-gray-200 focus:ring-0 shadow-none rounded-lg bg-white focus:border-[#D97706] placeholder:font-light"
+                                    {...field}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
                           />
+
+                          <FormField
+                            control={form.control}
+                            name="lastName"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel className="text-sm font-medium text-foreground">
+                                  Last Name
+                                </FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type="text"
+                                    placeholder="Enter Lastname"
+                                    className="h-10 border-gray-200 focus:ring-0 shadow-none rounded-lg bg-white focus:border-[#D97706] placeholder:font-light"
+                                    {...field}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={form.control}
+                            name="email"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel className="text-sm font-medium text-foreground">
+                                  Email
+                                </FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type="email"
+                                    placeholder="Enter Email"
+                                    className="h-10 border-gray-200 focus:ring-0 shadow-none rounded-lg bg-white focus:border-[#D97706] placeholder:font-light"
+                                    {...field}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={form.control}
+                            name="password"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel className="text-sm font-medium text-foreground">
+                                  Password
+                                </FormLabel>
+                                <FormControl>
+                                  <div className="relative">
+                                    <Input
+                                      type={showPassword ? "text" : "password"}
+                                      placeholder="Enter password"
+                                      className="h-10 pr-10 border-gray-200 focus:ring-0 shadow-none rounded-lg bg-white focus:border-amber-600 placeholder:font-light"
+                                      {...field}
+                                    />
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent cursor-pointer"
+                                      onClick={() =>
+                                        setShowPassword(!showPassword)
+                                      }
+                                    >
+                                      {showPassword ? (
+                                        <EyeOff className="h-4 w-4 text-muted-foreground" />
+                                      ) : (
+                                        <Eye className="h-4 w-4 text-muted-foreground" />
+                                      )}
+                                    </Button>
+                                  </div>
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={form.control}
+                            name="uid"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel className="text-sm font-medium text-foreground">
+                                  Enrollment Number
+                                </FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type="text"
+                                    placeholder="Enter username or enrollment number"
+                                    className="h-10 border-gray-200 focus:ring-0 shadow-none rounded-lg bg-white focus:border-[#D97706] placeholder:font-light"
+                                    {...field}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={form.control}
+                            name="degree"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel className="text-sm font-medium text-foreground">
+                                  Degree
+                                </FormLabel>
+                                <Select
+                                  onValueChange={field.onChange}
+                                  value={field.value}
+                                >
+                                  <FormControl>
+                                    <SelectTrigger className="h-12 w-full border-gray-200 focus:ring-0 shadow-none rounded-lg bg-white focus:border-[#D97706]">
+                                      <SelectValue placeholder="Select degree" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    <SelectItem value="BTECH">
+                                      {"Bachelor's Degree (BTECH)"}
+                                    </SelectItem>
+                                    <SelectItem value="MTECH">
+                                      {"Master's Degree (MTECH)"}
+                                    </SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={form.control}
+                            name="department"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel className="text-sm font-medium text-foreground">
+                                  Department
+                                </FormLabel>
+                                <Select
+                                  onValueChange={field.onChange}
+                                  value={field.value}
+                                >
+                                  <FormControl>
+                                    <SelectTrigger className="h-10 border-gray-200 w-full focus:ring-0 shadow-none rounded-lg bg-white focus:border-[#D97706] placeholder:font-light">
+                                      <SelectValue placeholder="Select department" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    <SelectItem value="computer-science">
+                                      Computer Science
+                                    </SelectItem>
+                                    <SelectItem value="electrical-engineering">
+                                      Electrical Engineering
+                                    </SelectItem>
+                                    <SelectItem value="mechanical-engineering">
+                                      Mechanical Engineering
+                                    </SelectItem>
+                                    <SelectItem value="civil-engineering">
+                                      Civil Engineering
+                                    </SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <div className="flex space-x-4">
+                            <FormField
+                              control={form.control}
+                              name="admissionYear"
+                              render={({ field }) => (
+                                <FormItem className="flex-1">
+                                  <FormLabel className="text-sm font-medium text-foreground">
+                                    Admission Year
+                                  </FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      type="number"
+                                      placeholder="2020"
+                                      min="1992"
+                                      max="2025"
+                                      className="h-10 border-gray-200 focus:ring-0 shadow-none rounded-lg bg-white focus:border-[#D97706] placeholder:font-light"
+                                      {...field}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+
+                            <FormField
+                              control={form.control}
+                              name="passoutYear"
+                              render={({ field }) => (
+                                <FormItem className="flex-1">
+                                  <FormLabel className="text-sm font-medium text-foreground">
+                                    Passing Year
+                                  </FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      type="number"
+                                      placeholder="2024"
+                                      min="1996"
+                                      max="2029"
+                                      className="h-10 border-gray-200 focus:ring-0 shadow-none rounded-lg bg-white focus:border-[#D97706] placeholder:font-light"
+                                      {...field}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+
+                          {!isYearValid && (
+                            <div className="">
+                              <p className="text-red-500 text-xs min-h-[1rem]">
+                                Invalid Admission Year and Passout Years for
+                                Selected degree
+                              </p>
+                            </div>
+                          )}
+
                           <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent cursor-pointer"
-                            onClick={() => setShowPassword(!showPassword)}
+                            type="submit"
+                            className="w-full h-12 text-sm font-medium text-white rounded-lg shadow-none cursor-pointer bg-amber-600 hover:bg-green-600"
+                            disabled={isSubmitting || isLoading}
                           >
-                            {showPassword ? (
-                              <EyeOff className="h-4 w-4 text-muted-foreground" />
+                            {isSubmitting ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
                             ) : (
-                              <Eye className="h-4 w-4 text-muted-foreground" />
+                              "Create Account"
                             )}
                           </Button>
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label
-                          htmlFor="username"
-                          className="text-sm font-medium text-foreground"
-                        >
-                          Enrollment Number
-                        </Label>
-                        <Input
-                          id="username"
-                          type="text"
-                          placeholder="Enter username or enrollment number"
-                          className="h-10 border-gray-200 focus:ring-0 shadow-none rounded-lg bg-white focus:border-[#D97706] placeholder:font-light"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label
-                          htmlFor="degree"
-                          className="text-sm font-medium text-foreground"
-                        >
-                          Degree
-                        </Label>
-                        <Select>
-                          <SelectTrigger className="h-12 w-full border-gray-200 focus:ring-0 shadow-none rounded-lg bg-white focus:border-[#D97706]">
-                            <SelectValue placeholder="Select degree" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="bachelor">
-                              Bachelor's Degree
-                            </SelectItem>
-                            <SelectItem value="master">
-                              Master's Degree
-                            </SelectItem>
-                            <SelectItem value="phd">PhD</SelectItem>
-                            <SelectItem value="diploma">Diploma</SelectItem>
-                            <SelectItem value="certificate">
-                              Certificate
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label
-                          htmlFor="department"
-                          className="text-sm font-medium text-foreground"
-                        >
-                          Department
-                        </Label>
-                        <Select>
-                          <SelectTrigger className="h-10 border-gray-200 w-full focus:ring-0 shadow-none rounded-lg bg-white focus:border-[#D97706] placeholder:font-light">
-                            <SelectValue placeholder="Select department" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="computer-science">
-                              Computer Science
-                            </SelectItem>
-                            <SelectItem value="electrical-engineering">
-                              Electrical Engineering
-                            </SelectItem>
-                            <SelectItem value="mechanical-engineering">
-                              Mechanical Engineering
-                            </SelectItem>
-                            <SelectItem value="civil-engineering">
-                              Civil Engineering
-                            </SelectItem>
-                            <SelectItem value="business-administration">
-                              Business Administration
-                            </SelectItem>
-                            <SelectItem value="mathematics">
-                              Mathematics
-                            </SelectItem>
-                            <SelectItem value="physics">Physics</SelectItem>
-                            <SelectItem value="chemistry">Chemistry</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="flex space-x-4">
-                        <div className="flex-1 space-y-2">
-                          <Label
-                            htmlFor="admissionYear"
-                            className="text-sm font-medium text-foreground"
-                          >
-                            Admission Year
-                          </Label>
-                          <Input
-                            id="admissionYear"
-                            type="number"
-                            placeholder="2020"
-                            min="1950"
-                            max="2030"
-                            className="h-10 border-gray-200 focus:ring-0 shadow-none rounded-lg bg-white focus:border-[#D97706] placeholder:font-light"
-                          />
-                        </div>
-
-                        <div className="flex-1 space-y-2">
-                          <Label
-                            htmlFor="passingYear"
-                            className="text-sm font-medium text-foreground"
-                          >
-                            Passing Year
-                          </Label>
-                          <Input
-                            id="passingYear"
-                            type="number"
-                            placeholder="2024"
-                            min="1950"
-                            max="2030"
-                            className="h-10 border-gray-200 focus:ring-0 shadow-none rounded-lg bg-white focus:border-[#D97706] placeholder:font-light"
-                          />
-                        </div>
-                      </div>
-
-                      <Button className="w-full h-12 text-sm font-medium text-white rounded-lg shadow-none cursor-pointer bg-amber-600 hover:bg-green-600">
-                        Create Account
-                      </Button>
+                        </form>
+                      </Form>
                     </div>
                     <div className="text-center text-sm mt-4 text-muted-foreground">
                       <>
@@ -608,7 +524,7 @@ const RegisterPage = () => {
                         <Button
                           variant="link"
                           className="p-0 h-auto text-sm text-amber-600 hover:text-opacity-80 font-medium cursor-pointer"
-                          onClick={() => router.push("/register")}
+                          onClick={() => router.push("/login")}
                         >
                           Login.
                         </Button>
